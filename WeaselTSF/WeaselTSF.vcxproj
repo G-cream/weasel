@@ -480,6 +480,8 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="CandidateList.h" />
+    <ClInclude Include="DotaNativePosition.h" />
+    <ClInclude Include="GameCompatibility.h" />
     <ClInclude Include="Compartment.h" />
     <ClInclude Include="ctffunc.h" />
     <ClInclude Include="DisplayAttributeInfo.h" />

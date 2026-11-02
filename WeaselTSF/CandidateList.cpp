@@ -4,6 +4,7 @@
 #include "CandidateList.h"
 #include <KeyEvent.h>
 #include <math.h>
+#include <map>
 
 using namespace std;
 using namespace weasel;
@@ -13,7 +14,47 @@ CCandidateList::CCandidateList(com_ptr<WeaselTSF> pTextService)
   _cRef = 1;
 }
 
-CCandidateList::~CCandidateList() {}
+namespace { thread_local std::map<UINT_PTR, CCandidateList*> gamePositionTimers; }
+
+CCandidateList::~CCandidateList() { _StopGamePositionTimer(); }
+
+void CCandidateList::_StartGamePositionTimer() {
+  _StopGamePositionTimer();
+  if (!_gameCompatibility.detected_position && !_gameCompatibility.native_position) return;
+  _gamePositionTimer = SetTimer(nullptr, 0, 125, _GamePositionTimer);
+  if (_gamePositionTimer) gamePositionTimers[_gamePositionTimer] = this;
+  GameCompatibilityLog(_gameCompatibility, "timer start id=%llu", static_cast<ULONGLONG>(_gamePositionTimer));
+}
+
+void CCandidateList::_StopGamePositionTimer() {
+  if (!_gamePositionTimer) return;
+  GameCompatibilityLog(_gameCompatibility, "timer stop id=%llu", static_cast<ULONGLONG>(_gamePositionTimer));
+  KillTimer(nullptr, _gamePositionTimer);
+  gamePositionTimers.erase(_gamePositionTimer);
+  _gamePositionTimer = 0;
+}
+
+VOID CALLBACK CCandidateList::_GamePositionTimer(HWND, UINT, UINT_PTR id, DWORD) {
+  auto found = gamePositionTimers.find(id);
+  if (found == gamePositionTimers.end()) return;
+  CCandidateList* candidate = found->second;
+  GameCompatibilityLog(candidate->_gameCompatibility, "timer fired id=%llu", static_cast<ULONGLONG>(id));
+  candidate->AddRef();
+  candidate->RefreshGamePosition();
+  candidate->Release();
+}
+
+void CCandidateList::RefreshGamePosition() {
+  GameCompatibilityLog(_gameCompatibility, "refresh detected=%d composing=%d count=%zu", _gameCompatibility.detected_position, _ui->status().composing, _ui->ctx().cinfo.candies.size());
+  if ((!_gameCompatibility.detected_position && !_gameCompatibility.native_position) || !_ui->status().composing) return;
+  RECT anchor = {};
+  if (!GetGameCompatibilityAnchor(_gameCompatibility, _GetActiveWnd(), &anchor)) {
+    Show(FALSE);
+    return;
+  }
+  _ui->UpdateInputPosition(anchor);
+  Show(_pbShow || _gameCompatibility.force_own_ui);
+}
 
 STDMETHODIMP CCandidateList::QueryInterface(REFIID riid, void** ppvObj) {
   if (ppvObj == nullptr) {
@@ -74,10 +115,16 @@ STDMETHODIMP CCandidateList::GetGUID(GUID* pguid) {
 }
 
 STDMETHODIMP CCandidateList::Show(BOOL showCandidateWindow) {
+  BOOL requested = showCandidateWindow;
+  // A host-controlled game UI must not leave our fallback over another app.
+  if (_gameCompatibility.enabled && showCandidateWindow &&
+      !IsGameCompatibilityForeground(_GetActiveWnd()))
+    showCandidateWindow = FALSE;
   if (showCandidateWindow)
     _ui->Show();
   else
     _ui->Hide();
+  GameCompatibilityLog(_gameCompatibility, "show requested=%d effective=%d shown=%d", requested, showCandidateWindow, _ui->IsShown());
   return S_OK;
 }
 
@@ -212,8 +259,17 @@ void CCandidateList::UpdateUI(const Context& ctx, const Status& status) {
   if (_pbShow == FALSE)
     _UpdateUIElement();
 
+  if (_gameCompatibility.enabled && _gameCompatibility.window_position) {
+    RECT anchor = {};
+    if (GetGameCompatibilityAnchor(_gameCompatibility, _GetActiveWnd(), &anchor))
+      _ui->UpdateInputPosition(anchor);
+  }
+  if (status.composing && (_gameCompatibility.detected_position || _gameCompatibility.native_position)) {
+    RefreshGamePosition();
+    return;
+  }
   if (status.composing)
-    Show(_pbShow);
+    Show(_pbShow || _gameCompatibility.force_own_ui);
   else
     Show(FALSE);
 }
@@ -223,16 +279,23 @@ void CCandidateList::UpdateStyle(const UIStyle& sty) {
 }
 
 void CCandidateList::UpdateInputPosition(RECT const& rc) {
-  _ui->UpdateInputPosition(rc);
+  RECT anchor = {};
+  if (_gameCompatibility.enabled && (_gameCompatibility.window_position || _gameCompatibility.detected_position || _gameCompatibility.native_position) &&
+      GetGameCompatibilityAnchor(_gameCompatibility, _GetActiveWnd(), &anchor))
+    _ui->UpdateInputPosition(anchor);
+  else if (!_gameCompatibility.detected_position && !_gameCompatibility.native_position)
+    _ui->UpdateInputPosition(rc);
 }
 
 void CCandidateList::Destroy() {
+  _StopGamePositionTimer();
   // EndUI();
   Show(FALSE);
   _DisposeUIWindow();
 }
 
 void CCandidateList::DestroyAll() {
+  _StopGamePositionTimer();
   // EndUI();
   Show(FALSE);
   _DisposeUIWindowAll();
@@ -284,6 +347,12 @@ HRESULT CCandidateList::_UpdateUIElement() {
 }
 
 void CCandidateList::StartUI() {
+  // Reload once per composition, so editing a rule needs no redeployment.
+  _gameCompatibility = LoadGameCompatibility();
+  _systemImeGuard.Configure(_gameCompatibility);
+  _gameCompatibility.detected_not_before = GetTickCount64();
+  GameCompatibilityLog(_gameCompatibility, "start enabled=%d force=%d detected=%d notBefore=%llu", _gameCompatibility.enabled,_gameCompatibility.force_own_ui,_gameCompatibility.detected_position,_gameCompatibility.detected_not_before);
+  _StopGamePositionTimer();
   com_ptr<ITfThreadMgr> pThreadMgr = _tsf->_GetThreadMgr();
   if (!pThreadMgr) {
     return;
@@ -305,13 +374,15 @@ void CCandidateList::StartUI() {
     });
   pUIElementMgr->BeginUIElement(this, &_pbShow, &uiid);
   // pUIElementMgr->UpdateUIElement(uiid);
-  if (_pbShow) {
+  if (_pbShow || _gameCompatibility.force_own_ui) {
     _ui->style() = _style;
     _MakeUIWindow();
   }
+  _StartGamePositionTimer();
 }
 
 void CCandidateList::EndUI() {
+  HideGameUI();
   com_ptr<ITfThreadMgr> pThreadMgr = _tsf->_GetThreadMgr();
   if (pThreadMgr) {
     com_ptr<ITfUIElementMgr> emgr;

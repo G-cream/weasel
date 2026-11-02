@@ -95,6 +95,7 @@ STDAPI WeaselTSF::Activate(ITfThreadMgr* pThreadMgr, TfClientId tfClientId) {
 }
 
 STDAPI WeaselTSF::Deactivate() {
+  _cand->StopGameSystemImeUI();
   m_client.EndSession();
 
   _InitTextEditSink(com_ptr<ITfDocumentMgr>());
@@ -122,6 +123,7 @@ STDAPI WeaselTSF::Deactivate() {
 STDAPI WeaselTSF::ActivateEx(ITfThreadMgr* pThreadMgr,
                              TfClientId tfClientId,
                              DWORD dwFlags) {
+  _cand->ConfigureGameSystemImeUI();
   com_ptr<ITfDocumentMgr> pDocMgrFocus;
   _activateFlags = dwFlags;
 
@@ -183,6 +185,7 @@ STDMETHODIMP WeaselTSF::OnSetThreadFocus() {
   return S_OK;
 }
 STDMETHODIMP WeaselTSF::OnKillThreadFocus() {
+  _cand->HideGameUI();
   _AbortComposition();
   return S_OK;
 }

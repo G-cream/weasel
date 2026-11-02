@@ -1,6 +1,7 @@
 #pragma once
 #include <WeaselUI.h>
 #include "ctffunc.h"
+#include "GameCompatibility.h"
 
 class WeaselTSF;
 
@@ -54,6 +55,10 @@ class CCandidateList : public ITfIntegratableCandidateListUIElement,
   void DestroyAll();
   void StartUI();
   void EndUI();
+  void HideGameUI() { if (_gameCompatibility.enabled) { _StopGamePositionTimer(); Show(FALSE); } }
+  void RefreshGamePosition();
+  void ConfigureGameSystemImeUI() { _systemImeGuard.Configure(LoadGameCompatibility()); }
+  void StopGameSystemImeUI() { _systemImeGuard.Stop(); }
 
   com_ptr<ITfContext> GetContextDocument();
   bool GetIsReposition() {
@@ -85,6 +90,12 @@ class CCandidateList : public ITfIntegratableCandidateListUIElement,
       STYLE_ACTIVE_SELECTION;
 
   BOOL _pbShow;
+  GameCompatibility _gameCompatibility;
+  GameSystemImeGuard _systemImeGuard;
+  UINT_PTR _gamePositionTimer = 0;
+  void _StartGamePositionTimer();
+  void _StopGamePositionTimer();
+  static VOID CALLBACK _GamePositionTimer(HWND, UINT, UINT_PTR, DWORD);
   weasel::UIStyle _style;
 
   com_ptr<ITfContext> _pContextDocument;

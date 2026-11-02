@@ -95,6 +95,12 @@
     <ClInclude Include="CandidateList.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="DotaNativePosition.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="GameCompatibility.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
     <ClInclude Include="ctffunc.h">
       <Filter>Header Files</Filter>
     </ClInclude>

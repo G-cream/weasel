@@ -1,0 +1,8 @@
+; Copy to game_compat.ini in the Rime user directory.
+; Existing rules for other applications can remain in that file.
+[dota2.exe]
+enabled=1
+force_own_ui=1
+position=native
+hide_system_ime_ui=1
+debug=0

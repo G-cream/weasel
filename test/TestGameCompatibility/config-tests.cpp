@@ -1,0 +1,63 @@
+#include "../../WeaselTSF/GameCompatibility.h"
+#include <cstdio>
+#include <cassert>
+int main() {
+  wchar_t temp[MAX_PATH] = {}, file[MAX_PATH] = {};
+  GetTempPathW(MAX_PATH, temp);
+  if (!GetTempFileNameW(temp, L"wgc", 0, file)) return 2;
+  WritePrivateProfileStringW(L"dota2.exe", L"enabled", L"1", file);
+  WritePrivateProfileStringW(L"dota2.exe", L"force_own_ui", L"1", file);
+  WritePrivateProfileStringW(L"dota2.exe", L"position", L"window", file);
+  WritePrivateProfileStringW(L"dota2.exe", L"anchor_x", L"250", file);
+  WritePrivateProfileStringW(L"dota2.exe", L"anchor_y", L"780", file);
+  auto game = LoadGameCompatibilityForApp(file, L"DOTA2.EXE");
+  assert(game.enabled && game.force_own_ui && game.window_position);
+  WritePrivateProfileStringW(L"dota2.exe", L"position", L"native", file);
+  auto native = LoadGameCompatibilityForApp(file, L"dota2.exe");
+  assert(native.native_position && !native.detected_position && !native.window_position);
+  assert(!native.hide_system_ime_ui);
+  WritePrivateProfileStringW(L"dota2.exe", L"hide_system_ime_ui", L"1", file);
+  native = LoadGameCompatibilityForApp(file, L"dota2.exe");
+  assert(native.hide_system_ime_ui);
+  assert(!LoadGameCompatibilityForApp(file,L"notepad.exe").hide_system_ime_ui);
+  RECT nativeClient = {100,200,3940,2360}, nativeArea = {};
+  assert(DotaNativeArea(1308,1520,1164,64,nativeClient,&nativeArea));
+  assert(nativeArea.left==1408 && nativeArea.top==1720 && nativeArea.bottom==1784);
+  assert(!DotaNativeArea(-1000,-1000,100,64,nativeClient,&nativeArea));
+  assert(!DotaNativeArea(3800,1520,1164,64,nativeClient,&nativeArea));
+  assert(!DotaNativeArea(NAN,1520,1164,64,nativeClient,&nativeArea));
+  int reason = 0;
+  assert(!GetDotaNativePosition(nullptr,nativeClient,&nativeArea,&reason) && reason==1);
+  auto other = LoadGameCompatibilityForApp(file, L"notepad.exe");
+  assert(!other.enabled && !other.force_own_ui && !other.window_position);
+  RECT client = {100, 200, 2100, 1200};
+  auto point = GameCompatibilityAnchor(game, client, 96);
+  assert(point.left == 600 && point.top == 980);
+  game.offset_x = -20; game.offset_y = 10;
+  point = GameCompatibilityAnchor(game, client, 144);
+  assert(point.left == 570 && point.top == 995);
+  game.offset_x = 4096; game.offset_y = -4096;
+  point = GameCompatibilityAnchor(game, client, 192);
+  assert(point.left == 2099 && point.top == 200);
+  WritePrivateProfileStringW(L"dota2.exe", L"anchor_x", L"999999", file);
+  WritePrivateProfileStringW(L"dota2.exe", L"offset_y", L"-999999", file);
+  game = LoadGameCompatibilityForApp(file, L"dota2.exe");
+  assert(game.anchor_x == 1000 && game.offset_y == -4096);
+  WritePrivateProfileStringW(L"dota2.exe", L"enabled", L"0", file);
+  game = LoadGameCompatibilityForApp(file, L"dota2.exe");
+  assert(!game.enabled && !game.force_own_ui && !game.window_position);
+  GameDetectedPosition data = {};
+  data.magic = 0x57475031; data.pid = 123; data.timestamp = 5000;
+  data.window = 456; data.width = 2000; data.height = 1000;
+  data.area = {600,900,900,940};
+  HWND window = reinterpret_cast<HWND>(static_cast<UINT_PTR>(456));
+  assert(IsGameDetectedPositionValid(data, 123, window, client, 6000));
+  assert(!IsGameDetectedPositionValid(data, 124, window, client, 6000));
+  assert(!IsGameDetectedPositionValid(data, 123, nullptr, client, 6000));
+  assert(!IsGameDetectedPositionValid(data, 123, window, client, 10000));
+  assert(!IsGameDetectedPositionValid(data, 123, window, client, 4000));
+  data.area.left = -1;
+  assert(!IsGameDetectedPositionValid(data, 123, window, client, 6000));
+  DeleteFileW(file);
+  puts("PASS: named rules, case-insensitive process matching, unaffected apps, window coordinates, DPI offsets, bounds and disabling.");
+}
