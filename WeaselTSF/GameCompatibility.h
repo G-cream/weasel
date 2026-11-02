@@ -7,6 +7,7 @@
 #include <set>
 #pragma comment(lib, "comctl32.lib")
 #include "DotaNativePosition.h"
+#include "AoE2NativePosition.h"
 
 // Local TSF-only rules: no changes to the server's IPC serialization format.
 struct GameCompatibility {
@@ -133,6 +134,8 @@ inline bool GetGameCompatibilityAnchor(const GameCompatibility& rule, HWND windo
   if (rule.native_position) {
     int reason = 0;
     bool ok = GetDotaNativePosition(root, client, result, &reason);
+    if (!ok && reason == 1)
+      ok = GetAoE2NativePosition(root, client, result, &reason);
     GameCompatibilityLog(rule, "native valid=%d reason=%d area=%ld,%ld,%ld,%ld", ok,reason,
       result->left,result->top,result->right,result->bottom);
     return ok;
@@ -171,7 +174,7 @@ inline bool IsGameCompatibilityForeground(HWND window) {
 }
 
 // Match only the current GUI thread's MSCTF compatibility frame.
-inline bool IsDotaSystemImeFrame(HWND window) {
+inline bool IsGameSystemImeFrame(HWND window) {
   DWORD pid = 0;
   if (GetWindowThreadProcessId(window, &pid) != GetCurrentThreadId() ||
       pid != GetCurrentProcessId()) return false;
@@ -208,7 +211,7 @@ class GameSystemImeGuard {
     }
     LRESULT result = DefSubclassProc(window,message,wp,lp);
     if (message == WM_WINDOWPOSCHANGING && lp && Current().users &&
-        IsDotaSystemImeFrame(window)) {
+        IsGameSystemImeFrame(window)) {
       auto pos = reinterpret_cast<WINDOWPOS*>(lp);
       RECT rect = {};
       if (GetWindowRect(window,&rect)) {
@@ -251,11 +254,9 @@ class GameSystemImeGuard {
   GameSystemImeGuard& operator=(const GameSystemImeGuard&) = delete;
   ~GameSystemImeGuard() { Stop(); }
   void Configure(const GameCompatibility& rule) {
-    wchar_t executable[MAX_PATH] = {};
-    GetModuleFileNameW(nullptr,executable,MAX_PATH);
-    const wchar_t* name = wcsrchr(executable,L'\\');
-    if (!rule.enabled || !rule.hide_system_ime_ui ||
-        _wcsicmp(name ? name+1 : executable,L"dota2.exe") != 0) {
+    // The per-executable rule is the opt-in boundary. The window identification
+    // is common to MSCTF, not tied to any game executable or game version.
+    if (!rule.enabled || !rule.hide_system_ime_ui) {
       Stop(); return;
     }
     auto& state = Current();

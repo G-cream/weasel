@@ -20,6 +20,13 @@ int main() {
   native = LoadGameCompatibilityForApp(file, L"dota2.exe");
   assert(native.hide_system_ime_ui);
   assert(!LoadGameCompatibilityForApp(file,L"notepad.exe").hide_system_ime_ui);
+  WritePrivateProfileStringW(L"AoE2DE_s.exe", L"enabled", L"1", file);
+  WritePrivateProfileStringW(L"AoE2DE_s.exe", L"force_own_ui", L"1", file);
+  WritePrivateProfileStringW(L"AoE2DE_s.exe", L"position", L"native", file);
+  WritePrivateProfileStringW(L"AoE2DE_s.exe", L"hide_system_ime_ui", L"1", file);
+  auto aoe = LoadGameCompatibilityForApp(file, L"aoe2de_S.EXE");
+  assert(aoe.enabled && aoe.force_own_ui && aoe.native_position && aoe.hide_system_ime_ui);
+  assert(!aoe.window_position && !aoe.detected_position && !aoe.debug);
   RECT nativeClient = {100,200,3940,2360}, nativeArea = {};
   assert(DotaNativeArea(1308,1520,1164,64,nativeClient,&nativeArea));
   assert(nativeArea.left==1408 && nativeArea.top==1720 && nativeArea.bottom==1784);

@@ -41,6 +41,8 @@
 
 本分支的 Dota 2 候選窗口兼容功能與啟用方式，見 [DOTA2-COMPATIBILITY.md](DOTA2-COMPATIBILITY.md)。
 
+帝國時代 2 的原生輸入框定位與啟用方式，見 [AOE2-COMPATIBILITY.md](AOE2-COMPATIBILITY.md)。
+
 通過 開始菜單 » 小狼毫輸入法 訪問設定工具及常用位置。
 
 用戶詞庫、配置文件位於 `%AppData%\Rime`，可通過菜單中的「用戶文件夾」打開。高水平玩家調教 Rime 輸入法常會用到。

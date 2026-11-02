@@ -11,8 +11,12 @@ cl /nologo /W4 /EHsc /MT /std:c++17 "%~dp0config-tests.cpp" /Fe:"%TEST_OUTPUT%\c
 if errorlevel 1 exit /b 1
 "%TEST_OUTPUT%\config-tests.exe"
 if errorlevel 1 exit /b 1
-rem The guard is deliberately restricted to dota2.exe; use that name for the fixture.
-cl /nologo /W4 /EHsc /MT /std:c++17 "%~dp0system-ime-tests.cpp" /Fe:"%TEST_OUTPUT%\dota2.exe" /Fo:"%TEST_OUTPUT%\system-ime-tests.obj" user32.lib advapi32.lib
+rem Exercise the shared opt-in MSCTF compatibility-frame guard.
+cl /nologo /W4 /EHsc /MT /std:c++17 "%~dp0system-ime-tests.cpp" /Fe:"%TEST_OUTPUT%\system-ime-tests.exe" /Fo:"%TEST_OUTPUT%\system-ime-tests.obj" user32.lib advapi32.lib
 if errorlevel 1 exit /b 1
-"%TEST_OUTPUT%\dota2.exe"
+"%TEST_OUTPUT%\system-ime-tests.exe"
+if errorlevel 1 exit /b 1
+cl /nologo /W4 /EHsc /MT /std:c++17 "%~dp0aoe2-native-tests.cpp" /Fe:"%TEST_OUTPUT%\aoe2-native-tests.exe" /Fo:"%TEST_OUTPUT%\aoe2-native-tests.obj" user32.lib
+if errorlevel 1 exit /b 1
+"%TEST_OUTPUT%\aoe2-native-tests.exe"
 exit /b %errorlevel%
