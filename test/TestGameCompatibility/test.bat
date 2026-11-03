@@ -21,4 +21,8 @@ if errorlevel 1 exit /b 1
 cl /nologo /W4 /EHsc /MT /std:c++17 "%~dp0aoe2-native-tests.cpp" /Fe:"%TEST_OUTPUT%\aoe2-native-tests.exe" /Fo:"%TEST_OUTPUT%\aoe2-native-tests.obj" user32.lib
 if errorlevel 1 exit /b 1
 "%TEST_OUTPUT%\aoe2-native-tests.exe"
+if errorlevel 1 exit /b 1
+cl /nologo /W4 /EHsc /MT /std:c++17 "%~dp0dota-native-tests.cpp" /Fe:"%TEST_OUTPUT%\dota-native-tests.exe" /Fo:"%TEST_OUTPUT%\dota-native-tests.obj" user32.lib
+if errorlevel 1 exit /b 1
+"%TEST_OUTPUT%\dota-native-tests.exe"
 exit /b %errorlevel%

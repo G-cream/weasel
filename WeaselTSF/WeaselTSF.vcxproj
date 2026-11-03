@@ -482,6 +482,7 @@
     <ClInclude Include="CandidateList.h" />
     <ClInclude Include="AoE2NativePosition.h" />
     <ClInclude Include="DotaNativePosition.h" />
+    <ClInclude Include="DotaNativeInterfaces.h" />
     <ClInclude Include="GameCompatibility.h" />
     <ClInclude Include="Compartment.h" />
     <ClInclude Include="ctffunc.h" />
