@@ -95,6 +95,7 @@ STDAPI WeaselTSF::Activate(ITfThreadMgr* pThreadMgr, TfClientId tfClientId) {
 }
 
 STDAPI WeaselTSF::Deactivate() {
+  _cand->EndUI();
   _cand->StopGameSystemImeUI();
   m_client.EndSession();
 

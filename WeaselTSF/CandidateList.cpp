@@ -47,13 +47,18 @@ VOID CALLBACK CCandidateList::_GamePositionTimer(HWND, UINT, UINT_PTR id, DWORD)
 void CCandidateList::RefreshGamePosition() {
   GameCompatibilityLog(_gameCompatibility, "refresh detected=%d composing=%d count=%zu", _gameCompatibility.detected_position, _ui->status().composing, _ui->ctx().cinfo.candies.size());
   if ((!_gameCompatibility.detected_position && !_gameCompatibility.native_position) || !_ui->status().composing) return;
-  RECT anchor = {};
-  if (!GetGameCompatibilityAnchor(_gameCompatibility, _GetActiveWnd(), &anchor)) {
-    Show(FALSE);
-    return;
-  }
-  _ui->UpdateInputPosition(anchor);
+  // Show validates the current position for every entry point, including TSF
+  // focus notifications. Never resurrect a candidate at its previous position.
   Show(_pbShow || _gameCompatibility.force_own_ui);
+}
+
+void CCandidateList::SetGameDocumentFocus(bool focused) {
+  if (!_gameCompatibility.enabled) return;
+  _gameDocumentFocused = focused;
+  if (!focused)
+    _StopGamePositionTimer();
+  else if (_gameUiActive)
+    _StartGamePositionTimer();
 }
 
 STDMETHODIMP CCandidateList::QueryInterface(REFIID riid, void** ppvObj) {
@@ -117,9 +122,19 @@ STDMETHODIMP CCandidateList::GetGUID(GUID* pguid) {
 STDMETHODIMP CCandidateList::Show(BOOL showCandidateWindow) {
   BOOL requested = showCandidateWindow;
   // A host-controlled game UI must not leave our fallback over another app.
-  if (_gameCompatibility.enabled && showCandidateWindow &&
-      !IsGameCompatibilityForeground(_GetActiveWnd()))
-    showCandidateWindow = FALSE;
+  if (_gameCompatibility.enabled && showCandidateWindow) {
+    HWND window = _GetActiveWnd();
+    if (!_gameUiActive || !_gameDocumentFocused || !_ui->status().composing ||
+        !IsGameCompatibilityForeground(window)) {
+      showCandidateWindow = FALSE;
+    } else if (_gameCompatibility.detected_position || _gameCompatibility.native_position) {
+      RECT anchor = {};
+      if (GetGameCompatibilityAnchor(_gameCompatibility, window, &anchor))
+        _ui->UpdateInputPosition(anchor);
+      else
+        showCandidateWindow = FALSE;
+    }
+  }
   if (showCandidateWindow)
     _ui->Show();
   else
@@ -285,9 +300,12 @@ void CCandidateList::UpdateInputPosition(RECT const& rc) {
     _ui->UpdateInputPosition(anchor);
   else if (!_gameCompatibility.detected_position && !_gameCompatibility.native_position)
     _ui->UpdateInputPosition(rc);
+  else
+    Show(FALSE);
 }
 
 void CCandidateList::Destroy() {
+  _gameUiActive = false;
   _StopGamePositionTimer();
   // EndUI();
   Show(FALSE);
@@ -295,6 +313,7 @@ void CCandidateList::Destroy() {
 }
 
 void CCandidateList::DestroyAll() {
+  _gameUiActive = false;
   _StopGamePositionTimer();
   // EndUI();
   Show(FALSE);
@@ -317,8 +336,8 @@ HWND CCandidateList::_GetActiveWnd() {
   _pContextDocument = nullptr;
 
   if (pThreadMgr != nullptr && SUCCEEDED(pThreadMgr->GetFocus(&pDocumentMgr)) &&
-      SUCCEEDED(pDocumentMgr->GetTop(&pContext)) &&
-      SUCCEEDED(pContext->GetActiveView(&pContextView))) {
+      pDocumentMgr && SUCCEEDED(pDocumentMgr->GetTop(&pContext)) &&
+      pContext && SUCCEEDED(pContext->GetActiveView(&pContextView)) && pContextView) {
     // Set current context
     _pContextDocument = pContext;
     pContextView->GetWnd(&w);
@@ -330,6 +349,8 @@ HWND CCandidateList::_GetActiveWnd() {
 }
 
 HRESULT CCandidateList::_UpdateUIElement() {
+  if (!_uiElementRegistered)
+    return S_OK;
   HRESULT hr = S_OK;
 
   com_ptr<ITfUIElementMgr> pUIElementMgr;
@@ -347,6 +368,10 @@ HRESULT CCandidateList::_UpdateUIElement() {
 }
 
 void CCandidateList::StartUI() {
+  if (_uiElementRegistered)
+    EndUI();
+  _gameUiActive = false;
+  _gameDocumentFocused = true;
   // Reload once per composition, so editing a rule needs no redeployment.
   _gameCompatibility = LoadGameCompatibility();
   _systemImeGuard.Configure(_gameCompatibility);
@@ -372,7 +397,11 @@ void CCandidateList::StartUI() {
                               bool* const next, bool* const scroll_next) {
       _tsf->HandleUICallback(sel, hov, next, scroll_next);
     });
-  pUIElementMgr->BeginUIElement(this, &_pbShow, &uiid);
+  _pbShow = TRUE;
+  if (FAILED(pUIElementMgr->BeginUIElement(this, &_pbShow, &uiid)))
+    return;
+  _uiElementRegistered = true;
+  _gameUiActive = true;
   // pUIElementMgr->UpdateUIElement(uiid);
   if (_pbShow || _gameCompatibility.force_own_ui) {
     _ui->style() = _style;
@@ -382,14 +411,17 @@ void CCandidateList::StartUI() {
 }
 
 void CCandidateList::EndUI() {
-  HideGameUI();
+  _gameUiActive = false;
+  _StopGamePositionTimer();
+  if (_gameCompatibility.enabled)
+    Show(FALSE);
+  const bool registered = _uiElementRegistered;
+  _uiElementRegistered = false;
   com_ptr<ITfThreadMgr> pThreadMgr = _tsf->_GetThreadMgr();
-  if (pThreadMgr) {
+  if (registered && pThreadMgr) {
     com_ptr<ITfUIElementMgr> emgr;
     auto hr = pThreadMgr->QueryInterface(&emgr);
-    if (FAILED(hr))
-      return;
-    if (emgr != NULL)
+    if (SUCCEEDED(hr) && emgr != NULL)
       emgr->EndUIElement(uiid);
   }
   _DisposeUIWindow();
@@ -434,10 +466,12 @@ void WeaselTSF::_EndUI() {
 }
 
 void WeaselTSF::_ShowUI() {
+  _cand->SetGameDocumentFocus(true);
   _cand->Show(TRUE);
 }
 
 void WeaselTSF::_HideUI() {
+  _cand->SetGameDocumentFocus(false);
   _cand->Show(FALSE);
 }
 

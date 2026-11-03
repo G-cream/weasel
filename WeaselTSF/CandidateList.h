@@ -7,6 +7,7 @@ class WeaselTSF;
 
 class CCandidateList : public ITfIntegratableCandidateListUIElement,
                        public ITfCandidateListUIElementBehavior {
+  friend struct CandidateListLifecycleTest;
  public:
   CCandidateList(com_ptr<WeaselTSF> pTextService);
   ~CCandidateList();
@@ -55,8 +56,9 @@ class CCandidateList : public ITfIntegratableCandidateListUIElement,
   void DestroyAll();
   void StartUI();
   void EndUI();
-  void HideGameUI() { if (_gameCompatibility.enabled) { _StopGamePositionTimer(); Show(FALSE); } }
+  void HideGameUI() { if (_gameCompatibility.enabled) { _gameUiActive = false; _StopGamePositionTimer(); Show(FALSE); } }
   void RefreshGamePosition();
+  void SetGameDocumentFocus(bool focused);
   void ConfigureGameSystemImeUI() { _systemImeGuard.Configure(LoadGameCompatibility()); }
   void StopGameSystemImeUI() { _systemImeGuard.Stop(); }
 
@@ -85,12 +87,15 @@ class CCandidateList : public ITfIntegratableCandidateListUIElement,
   std::unique_ptr<weasel::UI> _ui;
   DWORD _cRef;
   com_ptr<WeaselTSF> _tsf;
-  DWORD uiid;
+  DWORD uiid = 0;
+  bool _uiElementRegistered = false;
   TfIntegratableCandidateListSelectionStyle _selectionStyle =
       STYLE_ACTIVE_SELECTION;
 
   BOOL _pbShow;
   GameCompatibility _gameCompatibility;
+  bool _gameUiActive = false;
+  bool _gameDocumentFocused = true;
   GameSystemImeGuard _systemImeGuard;
   UINT_PTR _gamePositionTimer = 0;
   void _StartGamePositionTimer();

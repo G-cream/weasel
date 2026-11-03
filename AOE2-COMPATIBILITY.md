@@ -1,6 +1,6 @@
 # 帝国时代 2 候选窗口兼容
 
-此适配针对 AoE2 DE `101.103.57257.0` 的 Widget TextBoxInput 控件，迁入的是此前已安装并验证的修复。保留现有 Ctrl+Shift 延迟会话与 Dota 2 适配；不包含 OCR 或位置诊断探针。
+此适配针对 AoE2 DE `101.103.57257.0` 的 Widget TextBoxInput 控件，迁入的是此前已安装并验证的修复，并保留 Dota 2 适配。不包含 OCR 或位置诊断探针，也不修改 Ctrl+Shift 切换行为或服务连接时机。
 
 ## 启用
 
