@@ -29,6 +29,6 @@ debug=0
 
 迁移前已实测大厅搜索框、创建大厅弹窗名称框、窗口移动、窗口/全屏切换、Esc 取消、空格提交、切换前台程序及 Ctrl+Shift 切离再切回；正常退出后重开仍可输入。用户另行确认“位置正确，切换不卡”，并在对局测试后反馈“没问题”。对局结果为用户实测反馈；尚未覆盖所有控件、DPI、分辨率或长时间游玩。
 
-在 x64 Visual Studio Developer Command Prompt 运行 `test\TestGameCompatibility\test.bat`，验证配置、原生布局换算、焦点与归属、旧视口拒绝、遍历上限、版本/代码校验、无效内存处理及兼容小窗的 400 次显示请求。测试不启动游戏、不发送聊天、不修改已安装的输入法。产物位于被 Git 忽略的 `msbuild\game-compat-tests`。
+在 x64 Visual Studio Developer Command Prompt 运行 `test\TestGameCompatibility\test.bat`，验证配置、原生布局换算、焦点与归属、旧视口拒绝、遍历上限、版本/代码校验、无效内存处理及兼容小窗的 400 次显示请求。测试不启动游戏、不发送聊天、不修改已安装的输入法。产物位于被 Git 忽略的 `msbuild\game-compat-tests\x64`。也可在 x86 开发者命令行执行，产物位于 `Win32` 子目录，验证通用布局逻辑与安全跳过 x64 专用内存适配；这不代表支持 32 位版帝国时代 2 的原生定位。生命周期测试的两种架构用法见 [DOTA2-COMPATIBILITY.md](DOTA2-COMPATIBILITY.md)。
 
 此工程的重新编译属于源码迁移验证，不等于对新 DLL 重做了全部游戏实测。版本校验不通过时需要重新调查适配，不能直接取消校验继续访问内部对象。

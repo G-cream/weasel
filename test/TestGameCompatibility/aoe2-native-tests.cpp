@@ -18,6 +18,7 @@ int main() {
   assert(!AoE2NativeLayout(rect,transform,window,&area));
   rect[0]=660;
 
+#if defined(_WIN64)
   // Sparse fake module: validate production PE/type/focus/ownership checks
   // without loading or calling any game code or modifying another process.
   BYTE* base=static_cast<BYTE*>(VirtualAlloc(nullptr,0x4f24000,MEM_RESERVE,PAGE_NOACCESS));
@@ -69,4 +70,10 @@ int main() {
   assert(!GetAoE2NativePosition(nullptr,window,&area,&reason) && reason==20);
   VirtualFree(base,0,MEM_RELEASE);
   puts("PASS: real window transform, focus, ownership, stale viewport, bounded traversal, build/type guards and invalid-memory containment.");
+#else
+  int reason = 0;
+  assert(!AoE2NativeReadSafe(nullptr,window,&area,&reason) && reason==26);
+  assert(!GetAoE2NativePosition(nullptr,window,&area,&reason) && reason==20);
+  puts("PASS: layout conversion and safe rejection of x64-only native adapters on x86.");
+#endif
 }

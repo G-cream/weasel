@@ -19,13 +19,15 @@
 
 ## 验证
 
-在 x64 Visual Studio Developer Command Prompt 中运行 `test\TestGameCompatibility\test.bat`，检查命名规则、坐标边界及真实 Win32 测试窗口的显示前拦截。测试不会启动游戏、发送聊天或修改已安装的输入法。运行产物放在被 Git 忽略的 `msbuild\game-compat-tests`。
+在 x86 或 x64 Visual Studio Developer Command Prompt 中运行 `test\TestGameCompatibility\test.bat`，检查命名规则、坐标边界及真实 Win32 测试窗口的显示前拦截。测试不会启动游戏、发送聊天或修改已安装的输入法。运行产物分别放在被 Git 忽略的 `msbuild\game-compat-tests\Win32` 和 `msbuild\game-compat-tests\x64`。游戏原生位置适配仅支持已验证的 x64 游戏构建；x86 测试验证共用界面逻辑和安全跳过 x64 适配。
 
 先构建本仓库的 `WeaselTSF` Release x64，再运行以下生命周期回归测试。它链接实际 TSF 编译对象，以模拟的 TSF 管理器验证无焦点文档、界面注册失败、重复结束、文档焦点变化、位置定时器清理和接口失效后的重启；不注册输入法、不连接算法服务、不启动游戏。
 
 ```bat
 msbuild test\TestGameCompatibility\lifecycle-tests.vcxproj /p:Configuration=Release /p:Platform=x64
-msbuild\game-compat-tests\lifecycle-tests.exe
+msbuild\game-compat-tests\x64\lifecycle-tests.exe
 ```
+
+验证 x86 时先构建 `WeaselTSF` Release Win32，再将上面的 `/p:Platform=x64` 改为 `/p:Platform=Win32`，运行 `msbuild\game-compat-tests\Win32\lifecycle-tests.exe`。两种架构共用候选界面生命周期代码，测试链接各自的编译对象。
 
 游戏实测需另行验证搜索框、大厅/对局聊天、输入框移动、Esc 取消、选词提交、切换前台程序及 Ctrl+Shift 切离/切回。源码迁移和隔离测试不代表已完成新构建的游戏实测。

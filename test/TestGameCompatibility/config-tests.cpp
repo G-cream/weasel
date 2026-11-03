@@ -34,7 +34,11 @@ int main() {
   assert(!DotaNativeArea(3800,1520,1164,64,nativeClient,&nativeArea));
   assert(!DotaNativeArea(NAN,1520,1164,64,nativeClient,&nativeArea));
   int reason = 0;
+#if defined(_WIN64)
   assert(!GetDotaNativePosition(nullptr,nativeClient,&nativeArea,&reason) && reason==1);
+#else
+  assert(!GetDotaNativePosition(nullptr,nativeClient,&nativeArea,&reason) && reason==10);
+#endif
   auto other = LoadGameCompatibilityForApp(file, L"notepad.exe");
   assert(!other.enabled && !other.force_own_ui && !other.window_position);
   RECT client = {100, 200, 2100, 1200};

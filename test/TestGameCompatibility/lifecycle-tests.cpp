@@ -1,4 +1,4 @@
-// Link against the Release x64 TSF objects to exercise the real candidate code
+// Link against the matching Release TSF objects to exercise real candidate code
 // without registering an input method, opening a server session or a game.
 #include "../../WeaselTSF/stdafx.h"
 #include <WeaselUI.h>

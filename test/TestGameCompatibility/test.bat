@@ -2,10 +2,12 @@
 setlocal
 where cl >nul 2>&1
 if errorlevel 1 (
-  echo Run this script from an x64 Visual Studio Developer Command Prompt.
+  echo Run this script from an x86 or x64 Visual Studio Developer Command Prompt.
   exit /b 1
 )
-set "TEST_OUTPUT=%~dp0..\..\msbuild\game-compat-tests"
+set "TEST_PLATFORM=x64"
+if /i "%VSCMD_ARG_TGT_ARCH%"=="x86" set "TEST_PLATFORM=Win32"
+set "TEST_OUTPUT=%~dp0..\..\msbuild\game-compat-tests\%TEST_PLATFORM%"
 if not exist "%TEST_OUTPUT%" mkdir "%TEST_OUTPUT%"
 cl /nologo /W4 /EHsc /MT /std:c++17 "%~dp0config-tests.cpp" /Fe:"%TEST_OUTPUT%\config-tests.exe" /Fo:"%TEST_OUTPUT%\config-tests.obj" user32.lib advapi32.lib
 if errorlevel 1 exit /b 1
