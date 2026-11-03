@@ -1,6 +1,7 @@
 #include "../../WeaselTSF/AoE2NativePosition.h"
 #include <cassert>
 #include <cstdio>
+#include "aoe2-fixture.h"
 
 int main() {
   RECT window = {239,273,1605,1041}, area = {};
@@ -18,60 +19,58 @@ int main() {
   assert(!AoE2NativeLayout(rect,transform,window,&area));
   rect[0]=660;
 
-#if defined(_WIN64)
-  // Sparse fake module: validate production PE/type/focus/ownership checks
-  // without loading or calling any game code or modifying another process.
-  BYTE* base=static_cast<BYTE*>(VirtualAlloc(nullptr,0x4f24000,MEM_RESERVE,PAGE_NOACCESS));
-  assert(base);
-  const size_t pages[]={0,0xb1c000,0x3219000,0x321d000,0x4293000};
-  for (size_t page:pages) assert(VirtualAlloc(base+page,4096,MEM_COMMIT,PAGE_READWRITE));
-  auto dos=reinterpret_cast<IMAGE_DOS_HEADER*>(base);
-  dos->e_magic=IMAGE_DOS_SIGNATURE; dos->e_lfanew=0x80;
-  auto nt=reinterpret_cast<IMAGE_NT_HEADERS*>(base+0x80);
-  nt->Signature=IMAGE_NT_SIGNATURE;nt->FileHeader.TimeDateStamp=0x6acf93a9;
-  nt->OptionalHeader.SizeOfImage=0x4f24000;
-  const BYTE code[]={0x48,0x8d,0x05,0xc9,0xce,0x6f,0x02,0xc3};
-  memcpy(base+0xb1ce00,code,sizeof(code));
-  memcpy(base+0x3219cd0,"TextBoxInput",13);
-  auto pointer=[](BYTE* a,const BYTE* value) {memcpy(a,&value,sizeof(value));};
-  pointer(base+0x321d998+0x70,base+0xb1ce00);
-  alignas(8) BYTE manager[0x320]={}, collection[0x200]={}, control[0x400]={};
-  const BYTE* holder=manager;
-  const BYTE* list[]={collection};
-  pointer(base+0x4293138,reinterpret_cast<BYTE*>(&holder));
-  pointer(manager+0x300,reinterpret_cast<BYTE*>(list));
-  pointer(manager+0x308,reinterpret_cast<BYTE*>(list+1));
-  pointer(collection,base+0x333df60);pointer(collection+0x128,control);
-  pointer(control,base+0x321d998);pointer(control+0xd0,collection);
-  memcpy(control+0x100,rect,sizeof(rect));memcpy(collection+0x138,transform,sizeof(transform));
-  control[0x3d8]=0x80;
   int reason=0;
-  assert(AoE2NativeReadSafe(base,window,&area,&reason) && reason==0);
-  assert(area.left==474 && area.top==413 && area.bottom==431);
-  control[0x3d8]=0;
-  assert(!AoE2NativeReadSafe(base,window,&area,&reason) && reason==24);
-  control[0x3d8]=0x80;pointer(control+0xd0,manager);
-  assert(!AoE2NativeReadSafe(base,window,&area,&reason) && reason==24);
-  pointer(control+0xd0,collection);
-  float stale=1920;memcpy(collection+0x138,&stale,sizeof(stale));
-  assert(!AoE2NativeReadSafe(base,window,&area,&reason) && reason==25);
-  memcpy(collection+0x138,transform,sizeof(transform));
-  pointer(manager+0x308,reinterpret_cast<BYTE*>(list)+129*sizeof(void*));
-  assert(!AoE2NativeReadSafe(base,window,&area,&reason) && reason==23);
-  pointer(manager+0x308,reinterpret_cast<BYTE*>(list+1));
-  nt->FileHeader.TimeDateStamp++;
-  assert(!AoE2NativeReadSafe(base,window,&area,&reason) && reason==22);
-  nt->FileHeader.TimeDateStamp--;
-  base[0xb1ce00]=0;
-  assert(!AoE2NativeReadSafe(base,window,&area,&reason) && reason==22);
-  base[0xb1ce00]=code[0];
-  holder=reinterpret_cast<const BYTE*>(0x10000);
-  assert(!AoE2NativeReadSafe(base,window,&area,&reason) && reason==27);
+#if defined(_M_X64)
+  for (bool moved : {false,true}) {
+    AoE2Fixture game(moved);
+    auto read=[&]() {return AoE2NativeReadLayoutSafe(game.layout,window,&area,&reason);};
+    assert(read() && reason==0);
+    assert(area.left==474 && area.top==413 && area.bottom==431);
+    uint64_t noFlags=0;
+    memcpy(game.control+game.flags,&noFlags,8);
+    assert(!read() && reason==24);
+    memcpy(game.control+game.flags,&game.mask,8);
+    AoE2Fixture::Pointer(game.control+game.owner,game.manager);
+    assert(!read() && reason==24);
+    AoE2Fixture::Pointer(game.control+game.owner,game.collection);
+    float stale=1920;memcpy(game.collection+game.transform,&stale,4);
+    RECT before=area;
+    assert(!read() && reason==25 && EqualRect(&before,&area));
+    float width=1366;memcpy(game.collection+game.transform,&width,4);
+    AoE2Fixture::Pointer(game.manager+game.collections+8,
+        reinterpret_cast<const BYTE*>(game.list)+129*sizeof(void*));
+    assert(!read() && reason==23);
+    AoE2Fixture::Pointer(game.manager+game.collections+8,reinterpret_cast<const BYTE*>(game.list+1));
+    game.typeCode[0]=0x90;
+    assert(!read() && reason==24);
+    aoe2_native::Layout ignored;int stage=0;
+    assert(!aoe2_native::ResolveSafe(game.base,&ignored,&stage) && stage==2);
+    game.typeCode[0]=0x48;
+    BYTE* blocked=static_cast<BYTE*>(VirtualAlloc(nullptr,4096,MEM_RESERVE|MEM_COMMIT,PAGE_NOACCESS));
+    assert(blocked);AoE2Fixture::Pointer(game.global,blocked);
+    assert(!read() && reason==27);
+    AoE2Fixture::Pointer(game.global,game.holder);VirtualFree(blocked,0,MEM_RELEASE);
+    assert(read());
+    std::vector<BYTE> duplicateVector(game.vectorCode,game.vectorCode+19);
+    auto duplicate=game.Function(duplicateVector);
+    assert(!aoe2_native::ResolveSafe(game.base,&ignored,&stage) && stage==2);
+    memset(duplicate,0,19);
+    assert(aoe2_native::ResolveSafe(game.base,&ignored,&stage));
+    auto duplicateTable=game.Data(19*8);memcpy(duplicateTable,game.textTable,19*8);
+    assert(!aoe2_native::ResolveSafe(game.base,&ignored,&stage) && stage==3);
+    auto mapping=const_cast<BYTE*>(aoe2_native::TableMethod(game.layout.image,
+                                                           game.collectionTable,20,80));
+    aoe2_native::Findings seen;
+    aoe2_native::InspectCode(game.layout.image,mapping,80,seen);
+    assert(seen.transformFunction && !seen.ambiguous);
+    for(auto operand : {4,12,52,60})
+      AoE2Fixture::Number(mapping+operand,aoe2_native::U32(mapping+operand)+4);
+    aoe2_native::InspectCode(game.layout.image,mapping,80,seen);
+    assert(seen.ambiguous);
+  }
   assert(!GetAoE2NativePosition(nullptr,window,&area,&reason) && reason==20);
-  VirtualFree(base,0,MEM_RELEASE);
-  puts("PASS: real window transform, focus, ownership, stale viewport, bounded traversal, build/type guards and invalid-memory containment.");
+  puts("PASS: changed module bases/build IDs/RVAs/fields/focus bits; discovered layout, ownership, bounds, stale viewport, invalid memory and ambiguous-signature rejection.");
 #else
-  int reason = 0;
   assert(!AoE2NativeReadSafe(nullptr,window,&area,&reason) && reason==26);
   assert(!GetAoE2NativePosition(nullptr,window,&area,&reason) && reason==20);
   puts("PASS: layout conversion and safe rejection of x64-only native adapters on x86.");

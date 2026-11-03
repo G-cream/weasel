@@ -4,17 +4,6 @@
 #include <cstring>
 #include "DotaNativeInterfaces.h"
 
-// Exact-build helper retained for the separate AoE2 adapter.
-inline bool DotaNativeBuild(HMODULE module, DWORD stamp, DWORD size) {
-  if (!module) return false;
-  auto base = reinterpret_cast<const BYTE*>(module);
-  auto dos = reinterpret_cast<const IMAGE_DOS_HEADER*>(base);
-  if (dos->e_magic != IMAGE_DOS_SIGNATURE) return false;
-  auto nt = reinterpret_cast<const IMAGE_NT_HEADERS*>(base + dos->e_lfanew);
-  return nt->Signature == IMAGE_NT_SIGNATURE && nt->FileHeader.TimeDateStamp == stamp &&
-      nt->OptionalHeader.SizeOfImage == size;
-}
-
 inline bool DotaNativeArea(float x, float y, float width, float height,
                           const RECT& client, RECT* area) {
   if (!area || !std::isfinite(x) || !std::isfinite(y) ||

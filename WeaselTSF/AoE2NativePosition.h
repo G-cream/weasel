@@ -1,9 +1,10 @@
 #pragma once
 #include "DotaNativePosition.h"
+#include "AoE2NativeDiscovery.h"
 #include <cstdint>
 
-// AoE2 DE 101.103.57257.0. Only read existing Widget state on its GUI thread.
-// No game functions, synchronous window messages, scanning, or target writes.
+// Read existing Widget state on its GUI thread using a discovered layout.
+// Discovery scans module sections once on a worker; no game functions or writes.
 inline const BYTE* AoE2NativePointer(const void* address) {
   uintptr_t value = 0;
   memcpy(&value, address, sizeof(value));
@@ -34,25 +35,16 @@ inline bool AoE2NativeLayout(const float* rect, const float* transform,
                         client, result);
 }
 
-inline bool AoE2NativeRead(const BYTE* base, const RECT& client, RECT* result,
-                           int* reason) {
-#if defined(_WIN64)
-  *reason = 22;
-  if (!DotaNativeBuild(reinterpret_cast<HMODULE>(const_cast<BYTE*>(base)),
-                       0x6acf93a9, 0x4f24000)) return false;
-  const BYTE typeCode[] = {0x48,0x8d,0x05,0xc9,0xce,0x6f,0x02,0xc3};
-  // Lazy-decrypted executable code must already be available; never call it.
-  if (memcmp(base + 0xb1ce00, typeCode, sizeof(typeCode)) ||
-      memcmp(base + 0x3219cd0, "TextBoxInput", 13) ||
-      AoE2NativePointer(base + 0x321d998 + 0x70) != base + 0xb1ce00)
-    return false;
+inline bool AoE2NativeReadLayout(const aoe2_native::Layout& layout,
+                                  const RECT& client, RECT* result, int* reason) {
+#if defined(_M_X64)
   *reason = 23;
-  const BYTE* holder = AoE2NativePointer(base + 0x4293138);
+  const BYTE* holder = AoE2NativePointer(layout.managerSlot);
   if (!holder) return false;
   const BYTE* manager = AoE2NativePointer(holder);
   if (!manager) return false;
-  const BYTE* begin = AoE2NativePointer(manager + 0x300);
-  const BYTE* end = AoE2NativePointer(manager + 0x308);
+  const BYTE* begin = AoE2NativePointer(manager + layout.collections);
+  const BYTE* end = AoE2NativePointer(manager + layout.collections + sizeof(void*));
   const uintptr_t first = reinterpret_cast<uintptr_t>(begin);
   const uintptr_t last = reinterpret_cast<uintptr_t>(end);
   if (!begin || !end || last < first || last - first > 128 * sizeof(void*) ||
@@ -67,30 +59,58 @@ inline bool AoE2NativeRead(const BYTE* base, const RECT& client, RECT* result,
     if (reinterpret_cast<uintptr_t>(collection) < 0x10000 ||
         reinterpret_cast<uintptr_t>(collection) % sizeof(void*)) continue;
     const BYTE* vtable = AoE2NativePointer(collection);
-    if (!vtable || reinterpret_cast<uintptr_t>(vtable) <
-                       reinterpret_cast<uintptr_t>(base) + 0x3000000 ||
-        reinterpret_cast<uintptr_t>(vtable) >=
-                       reinterpret_cast<uintptr_t>(base) + 0x4000000) continue;
-    const BYTE* control = AoE2NativePointer(collection + 0x128);
-    if (!control || AoE2NativePointer(control) != base + 0x321d998 ||
-        AoE2NativePointer(control + 0xd0) != collection) continue;
+    if (!vtable || aoe2_native::TableMethod(layout.image,vtable,24,1)!=layout.focusSetter)
+      continue;
+    const BYTE* control = AoE2NativePointer(collection + layout.focus);
+    if (!control || AoE2NativePointer(control) != layout.textTable ||
+        AoE2NativePointer(control + layout.owner) != collection) continue;
+    auto type=aoe2_native::TableMethod(layout.image,layout.textTable,14,8);
+    if (type!=layout.typeGetter || memcmp(type,"\x48\x8d\x05",3) || type[7]!=0xc3)
+      return false;
+    auto name=aoe2_native::Rip(type+7,type+3);
+    if (!layout.image.ReadOnly(name,13) || memcmp(name,"TextBoxInput",13)) return false;
     uint64_t flags = 0;
-    memcpy(&flags, control + 0x3d8, sizeof(flags));
-    if (!(flags & 0x80)) continue;
+    memcpy(&flags, control + layout.flags, sizeof(flags));
+    if (!(flags & layout.focusMask)) continue;
     float rect[4] = {}, transform[8] = {};
-    memcpy(rect, control + 0x100, sizeof(rect));
-    memcpy(transform, collection + 0x138, sizeof(transform));
+    memcpy(rect, control + layout.rect, sizeof(rect));
+    memcpy(transform, collection + layout.transform, sizeof(transform));
     *reason = 25;
-    if (!AoE2NativeLayout(rect, transform, client, result)) return false;
+    RECT area={};
+    if (!AoE2NativeLayout(rect, transform, client, &area)) return false;
     // Recheck ownership/focus before publishing the sampled geometry.
-    if (AoE2NativePointer(collection + 0x128) != control ||
-        AoE2NativePointer(control + 0xd0) != collection) return false;
+    if (AoE2NativePointer(collection + layout.focus) != control ||
+        AoE2NativePointer(control + layout.owner) != collection) return false;
+    memcpy(&flags,control+layout.flags,sizeof(flags));
+    if (!(flags&layout.focusMask)) return false;
+    *result=area;
     *reason = 0;
     return true;
   }
   return false;
 #else
+  (void)layout; (void)client; (void)result;
   *reason = 26;
+  return false;
+#endif
+}
+
+inline bool AoE2NativeReadLayoutSafe(const aoe2_native::Layout& layout,
+                                      const RECT& client, RECT* result, int* reason) {
+  __try { return AoE2NativeReadLayout(layout,client,result,reason); }
+  __except (EXCEPTION_EXECUTE_HANDLER) { *reason=27; return false; }
+}
+
+inline bool AoE2NativeRead(const BYTE* base, const RECT& client, RECT* result,
+                           int* reason) {
+#if defined(_M_X64)
+  *reason=22;
+  aoe2_native::Layout layout;
+  if (!aoe2_native::GetLayout(base,&layout,reason)) return false;
+  return AoE2NativeReadLayout(layout,client,result,reason);
+#else
+  (void)base; (void)client; (void)result;
+  *reason=26;
   return false;
 #endif
 }

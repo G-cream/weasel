@@ -481,6 +481,7 @@
   <ItemGroup>
     <ClInclude Include="CandidateList.h" />
     <ClInclude Include="AoE2NativePosition.h" />
+    <ClInclude Include="AoE2NativeDiscovery.h" />
     <ClInclude Include="DotaNativePosition.h" />
     <ClInclude Include="DotaNativeInterfaces.h" />
     <ClInclude Include="GameCompatibility.h" />

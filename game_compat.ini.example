@@ -7,7 +7,7 @@ position=native
 hide_system_ime_ui=1
 debug=0
 
-; AoE2 DE 101.103.57257.0: use the focused Widget input rectangle.
+; AoE2 DE: discover Widget metadata and read the focused input rectangle.
 [AoE2DE_s.exe]
 enabled=1
 force_own_ui=1
